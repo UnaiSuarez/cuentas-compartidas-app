@@ -27,6 +27,7 @@ export function useSettlement() {
     const normalizedTx = transactions.map(tx => ({
       id:             tx.id,
       type:           tx.type,
+      paymentMode:    tx.paymentMode,
       amount:         tx.amount,
       paidBy:         tx.paidBy,
       splitAmong:     tx.splitAmong,

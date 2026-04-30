@@ -1,11 +1,13 @@
 import { ScrollView, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { ArrowRight } from 'lucide-react-native'
+import { ArrowRight, Plus } from 'lucide-react-native'
+import { useRouter } from 'expo-router'
 import { useApp }        from '../../src/context/AppContext'
 import { useSettlement } from '../../src/hooks/useSettlement'
 import { formatCurrency } from '../../src/utils/formatters'
 
 export default function LiquidacionScreen() {
+  const router = useRouter()
   const { userProfile, groupMembers, loading } = useApp()
   const { summary } = useSettlement()
 
@@ -13,6 +15,8 @@ export default function LiquidacionScreen() {
 
   const myDebts   = summary.pagosOptimos.filter(p => p.de === userProfile?.id)
   const myCredits = summary.pagosOptimos.filter(p => p.a  === userProfile?.id)
+  const isDebtor    = myDebts.length   > 0
+  const isCreditor  = myCredits.length > 0
 
   if (loading) {
     return (
@@ -27,30 +31,36 @@ export default function LiquidacionScreen() {
       <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 20 }}>
         <Text className="text-white text-xl font-bold mb-4">Liquidación</Text>
 
-        {/* Mis deudas */}
-        {myDebts.length > 0 && (
+        {/* Info contextual: deudas del usuario */}
+        {isDebtor && (
           <View className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-4">
-            <Text className="text-red-300 text-sm font-semibold mb-2">⚠️ Tienes deudas pendientes</Text>
+            <Text className="text-red-300 text-sm font-semibold mb-2">Tienes deudas pendientes</Text>
             {myDebts.map((p, i) => (
               <Text key={i} className="text-slate-300 text-sm mb-1">
                 Debes <Text className="text-white font-bold">{formatCurrency(p.monto)}</Text>{' '}
-                a <Text className="text-emerald-400 font-medium">{getMemberName(p.a)}</Text>
+                a <Text className="text-emerald-400 font-medium">{getMemberName(p.a)}</Text>.{' '}
+                Cuando añadas ese importe como ingreso, se saldará automáticamente.
               </Text>
             ))}
-            <Text className="text-slate-400 text-xs mt-2">
-              Añade ese importe como ingreso en la web para saldarlo.
-            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/transacciones')}
+              className="mt-3 flex-row items-center gap-2 bg-blue-600/20 border border-blue-500/30 px-4 py-2 rounded-xl self-start"
+            >
+              <Plus size={14} color="#60a5fa" />
+              <Text className="text-blue-400 text-sm">Añadir ingreso</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Créditos */}
-        {myCredits.length > 0 && (
+        {/* Info contextual: créditos del usuario */}
+        {isCreditor && (
           <View className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 mb-4">
-            <Text className="text-emerald-300 text-sm font-semibold mb-2">💰 Te deben dinero</Text>
+            <Text className="text-emerald-300 text-sm font-semibold mb-2">Te deben dinero</Text>
             {myCredits.map((p, i) => (
               <Text key={i} className="text-slate-300 text-sm mb-1">
                 <Text className="text-amber-400 font-medium">{getMemberName(p.de)}</Text>{' '}
-                te debe <Text className="text-white font-bold">{formatCurrency(p.monto)}</Text>
+                te debe <Text className="text-white font-bold">{formatCurrency(p.monto)}</Text>.
+                Tu saldo se actualizará en cuanto añada fondos al grupo.
               </Text>
             ))}
           </View>
@@ -60,8 +70,8 @@ export default function LiquidacionScreen() {
         <View className="bg-slate-900 rounded-2xl p-4 border border-slate-800 mb-4">
           <Text className="text-slate-400 text-xs uppercase tracking-wider mb-3">Saldo actual</Text>
           {groupMembers.map(member => {
-            const bal = summary.balances[member.id] ?? 0
-            const c   = bal > 0.01 ? '#10b981' : bal < -0.01 ? '#ef4444' : '#94a3b8'
+            const bal  = summary.balances[member.id] ?? 0
+            const c    = bal > 0.01 ? '#10b981' : bal < -0.01 ? '#ef4444' : '#94a3b8'
             const icon = bal > 0.01 ? '✅' : bal < -0.01 ? '⚠️' : '🎉'
             const isMe = member.id === userProfile?.id
             return (
@@ -76,9 +86,9 @@ export default function LiquidacionScreen() {
                     <Text className="text-white font-semibold text-sm">{member.name}</Text>
                     {isMe && <Text className="text-blue-400 text-xs">(tú)</Text>}
                   </View>
-                  <Text className="text-slate-500 text-xs mt-0.5">{icon} {
-                    bal > 0.01 ? 'Le deben dinero' : bal < -0.01 ? 'Debe dinero' : 'En paz'
-                  }</Text>
+                  <Text className="text-slate-500 text-xs mt-0.5">
+                    {icon} {bal > 0.01 ? 'Le deben dinero' : bal < -0.01 ? 'Debe dinero' : 'En paz'}
+                  </Text>
                 </View>
                 <Text className="text-lg font-bold tabular-nums" style={{ color: c }}>
                   {formatCurrency(bal, true)}
@@ -92,7 +102,9 @@ export default function LiquidacionScreen() {
         {summary.pagosOptimos.length > 0 ? (
           <View className="bg-slate-900 rounded-2xl p-4 border border-slate-800">
             <Text className="text-slate-400 text-xs uppercase tracking-wider mb-1">Pagos a realizar</Text>
-            <Text className="text-slate-500 text-xs mb-3">Añade el importe como ingreso para saldar.</Text>
+            <Text className="text-slate-500 text-xs mb-3">
+              Añade el importe como ingreso y el saldo se ajustará solo.
+            </Text>
             {summary.pagosOptimos.map((p, i) => {
               const isMe = userProfile?.id === p.de
               return (
@@ -104,10 +116,21 @@ export default function LiquidacionScreen() {
                 >
                   <View className="flex-row items-center gap-2 flex-1">
                     <Text className="text-red-400 font-medium text-sm">{getMemberName(p.de)}</Text>
-                    <ArrowRight size={14} color="#64748b" />
+                    <View className="items-center">
+                      <ArrowRight size={14} color="#64748b" />
+                      <Text className="text-white font-bold text-xs">{formatCurrency(p.monto)}</Text>
+                    </View>
                     <Text className="text-emerald-400 font-medium text-sm">{getMemberName(p.a)}</Text>
                   </View>
-                  <Text className="text-white font-bold text-sm">{formatCurrency(p.monto)}</Text>
+                  {isMe && (
+                    <TouchableOpacity
+                      onPress={() => router.push('/(tabs)/transacciones')}
+                      className="bg-blue-600/20 border border-blue-500/30 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+                    >
+                      <Plus size={12} color="#60a5fa" />
+                      <Text className="text-blue-400 text-xs">Añadir</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )
             })}

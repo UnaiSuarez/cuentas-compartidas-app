@@ -1,49 +1,48 @@
+/**
+ * Chat interno del grupo.
+ *
+ * - Mensajes en tiempo real vía Firestore listener (AppContext)
+ * - Tipos: mensaje normal, recordatorio de pago, notificación del sistema
+ * - Marca como leído al abrir la pantalla
+ */
+
 import { useState, useRef, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Send } from 'lucide-react-native'
-import {
-  addDoc, collection, serverTimestamp,
-} from 'firebase/firestore'
-import { db }         from '../../src/config/firebase'
-import { useApp }     from '../../src/context/AppContext'
-import { timeAgo }    from '../../src/utils/formatters'
+import { Send, MessageCircle } from 'lucide-react-native'
+import { useApp }  from '../../src/context/AppContext'
+import { useChat } from '../../src/hooks/useChat'
+import { formatDate } from '../../src/utils/formatters'
 
 export default function ChatScreen() {
-  const { userProfile, groupId, messages, loading } = useApp()
+  const { messages, userProfile, groupMembers, loading } = useApp()
+  const { sendMessage, markAsRead, sending } = useChat()
   const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
   const flatRef = useRef(null)
 
-  // messages llegan en orden desc desde Firestore; los revertimos para chat
-  const sorted = [...messages]
-    .filter(m => m.type === 'message')
-    .reverse()
+  // Mensajes en orden cronológico (el listener los devuelve desc, invertimos)
+  const chronological = [...messages].reverse()
 
-  async function sendMessage() {
-    if (!text.trim() || !groupId || !userProfile) return
-    const content = text.trim()
+  // Marcar todos los mensajes no leídos al abrir la pantalla
+  useEffect(() => {
+    messages.forEach(msg => {
+      if (msg.sender !== userProfile?.id && !msg.readBy?.includes(userProfile?.id)) {
+        markAsRead(msg.id)
+      }
+    })
+  }, [messages.length])
+
+  async function handleSend() {
+    if (!text.trim()) return
+    const textToSend = text
     setText('')
-    setSending(true)
-    try {
-      await addDoc(collection(db, 'groups', groupId, 'messages'), {
-        type:        'message',
-        text:        content,
-        sender:      userProfile.id,
-        senderName:  userProfile.name,
-        senderAvatar: userProfile.avatar,
-        readBy:      [userProfile.id],
-        createdAt:   serverTimestamp(),
-      })
-    } catch (_) {
-      setText(content)
-    } finally {
-      setSending(false)
-    }
+    await sendMessage(textToSend)
   }
+
+  const getMember = id => groupMembers.find(m => m.id === id)
 
   if (loading) {
     return (
@@ -68,29 +67,54 @@ export default function ChatScreen() {
         {/* Mensajes */}
         <FlatList
           ref={flatRef}
-          data={sorted}
+          data={chronological}
           keyExtractor={item => item.id}
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
           contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
           ListEmptyComponent={
             <View className="items-center py-16">
-              <Text className="text-4xl mb-3">💬</Text>
-              <Text className="text-slate-400 text-center">Sin mensajes todavía.</Text>
+              <MessageCircle size={40} color="#334155" />
+              <Text className="text-slate-400 text-center mt-3">Aún no hay mensajes.</Text>
+              <Text className="text-slate-600 text-sm text-center mt-1">¡Sé el primero en escribir!</Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const isMe = item.sender === userProfile?.id
-            return (
-              <View className={`mb-3 max-w-xs ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
-                {!isMe && (
-                  <Text className="text-slate-400 text-xs mb-1 ml-1">{item.senderName}</Text>
-                )}
-                <View className={`px-4 py-2.5 rounded-2xl ${
-                  isMe ? 'bg-blue-600 rounded-tr-sm' : 'bg-slate-700 rounded-tl-sm'
-                }`}>
-                  <Text className="text-white text-sm leading-5">{item.text}</Text>
+          renderItem={({ item: msg }) => {
+            const isOwn    = msg.sender === userProfile?.id
+            const isSystem = msg.type === 'system' || msg.type === 'payment_reminder'
+            const member   = getMember(msg.sender)
+
+            // Mensajes de sistema: centrados, sin avatar
+            if (isSystem) {
+              return (
+                <View className="flex justify-center items-center my-1">
+                  <Text className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full text-center">
+                    {msg.text}
+                  </Text>
                 </View>
-                <Text className="text-slate-500 text-xs mt-1 mx-1">{timeAgo(item.createdAt)}</Text>
+              )
+            }
+
+            return (
+              <View className={`mb-3 max-w-xs ${isOwn ? 'self-end items-end' : 'self-start items-start'}`}>
+                {/* Nombre del remitente (no en mensajes propios) */}
+                {!isOwn && (
+                  <Text className="text-slate-400 text-xs mb-1 ml-1">
+                    {msg.senderName || 'Desconocido'}
+                  </Text>
+                )}
+                {/* Burbuja */}
+                <View className={`px-4 py-2.5 rounded-2xl ${
+                  isOwn ? 'bg-blue-600 rounded-tr-sm' : 'bg-slate-700 rounded-tl-sm'
+                }`}>
+                  <Text className="text-white text-sm leading-5">{msg.text}</Text>
+                </View>
+                {/* Timestamp */}
+                <Text className={`text-slate-500 text-xs mt-1 mx-1 ${isOwn ? 'text-right' : ''}`}>
+                  {msg.createdAt?.toDate
+                    ? formatDate(msg.createdAt.toDate(), true)
+                    : '—'
+                  }
+                </Text>
               </View>
             )
           }}
@@ -100,7 +124,7 @@ export default function ChatScreen() {
         <View className="flex-row items-end px-4 py-3 gap-3 border-t border-slate-800">
           <TextInput
             className="flex-1 bg-slate-800 text-white rounded-2xl px-4 py-3 border border-slate-700"
-            placeholder="Escribe un mensaje…"
+            placeholder="Escribe un mensaje..."
             placeholderTextColor="#64748b"
             value={text}
             onChangeText={setText}
@@ -109,7 +133,7 @@ export default function ChatScreen() {
             style={{ maxHeight: 120 }}
           />
           <TouchableOpacity
-            onPress={sendMessage}
+            onPress={handleSend}
             disabled={!text.trim() || sending}
             className={`w-11 h-11 rounded-full items-center justify-center ${
               text.trim() ? 'bg-blue-600' : 'bg-slate-700'

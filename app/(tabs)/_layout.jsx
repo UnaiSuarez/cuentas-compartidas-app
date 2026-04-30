@@ -1,10 +1,41 @@
+import { View, Text } from 'react-native'
 import { Tabs } from 'expo-router'
 import {
   LayoutDashboard, List, Scale, BarChart2, MessageCircle, Settings,
 } from 'lucide-react-native'
+import { useChat } from '../../src/hooks/useChat'
 
 const ACTIVE   = '#3b82f6'
 const INACTIVE = '#64748b'
+
+function ChatTabIcon({ color, size }) {
+  const { unreadCount } = useChat()
+  return (
+    <View>
+      <MessageCircle size={size} color={color} />
+      {unreadCount > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -4,
+            right: -6,
+            backgroundColor: '#ef4444',
+            borderRadius: 8,
+            minWidth: 16,
+            height: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 3,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </View>
+  )
+}
 
 export default function TabsLayout() {
   return (
@@ -55,7 +86,7 @@ export default function TabsLayout() {
         name="chat"
         options={{
           title: 'Chat',
-          tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <ChatTabIcon color={color} size={size} />,
         }}
       />
       <Tabs.Screen
