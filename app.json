@@ -1,29 +1,42 @@
 {
   "expo": {
-    "name": "cuentas-compartidas-mobile",
+    "name": "Cuentas Compartidas",
     "slug": "cuentas-compartidas-mobile",
     "version": "1.0.0",
+    "scheme": "cuentascompartidas",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#020617"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.unai.cuentascompartidas"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#020617"
       },
+      "package": "com.unai.cuentascompartidas",
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2d417041-ba6a-4e4d-8041-0f5b19447b7f"
+      }
     }
   }
 }
