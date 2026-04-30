@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { AppProvider, useApp } from '../src/context/AppContext'
 import AppLogo from '../src/components/AppLogo'
+import { useNotifications } from '../src/hooks/useNotifications'
 import '../global.css'
 
 function SplashScreen() {
@@ -37,6 +38,9 @@ function RootLayoutNav() {
   const { firebaseUser, userProfile, groupId, loading } = useApp()
   const segments = useSegments()
   const router   = useRouter()
+
+  // Inicializar notificaciones cuando hay sesión activa
+  useNotifications(firebaseUser?.uid ?? null)
 
   useEffect(() => {
     if (loading) return
