@@ -1,6 +1,7 @@
-import { initializeApp, getApps } from 'firebase/app'
-import { getAuth }                 from 'firebase/auth'
-import { getFirestore }            from 'firebase/firestore'
+import { initializeApp, getApps, getApp } from 'firebase/app'
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const firebaseConfig = {
   apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -11,10 +12,19 @@ const firebaseConfig = {
   appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 }
 
-// Singleton — evita reinicializar si Metro hace hot-reload
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig)
 
-export const auth = getAuth(app)
-export const db   = getFirestore(app)
+// initializeAuth configura la persistencia en AsyncStorage (sesión sobrevive al cerrar la app).
+// Si ya está inicializado (hot-reload), usamos getAuth para evitar el error de doble init.
+let auth
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  })
+} catch {
+  auth = getAuth(app)
+}
 
+export { auth }
+export const db = getFirestore(app)
 export default app

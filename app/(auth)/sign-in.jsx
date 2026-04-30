@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react-native'
 import { useAuth } from '../../src/hooks/useAuth'
+import AppLogo from '../../src/components/AppLogo'
 
 export default function SignInScreen() {
   const router = useRouter()
@@ -46,8 +47,8 @@ export default function SignInScreen() {
         >
           {/* Logo / Título */}
           <View className="items-center mb-10">
-            <Text className="text-5xl mb-4">€</Text>
-            <Text className="text-white text-3xl font-bold">Cuentas</Text>
+            <AppLogo size={72} />
+            <Text className="text-white text-3xl font-bold mt-5">Cuentas</Text>
             <Text className="text-blue-400 text-3xl font-bold">Compartidas</Text>
             <Text className="text-slate-400 text-sm mt-2">Gestiona gastos con tu grupo</Text>
           </View>
