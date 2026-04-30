@@ -1,14 +1,3 @@
-/**
- * Hook para el chat interno del grupo.
- *
- * Mensajes en: /groups/{groupId}/messages/{msgId}
- *
- * Tipos de mensaje:
- *   'message'          — mensaje de texto normal
- *   'system'           — notificación del sistema (gasto añadido, etc.)
- *   'payment_reminder' — recordatorio de pago entre usuarios
- */
-
 import { useState } from 'react'
 import {
   collection, addDoc, updateDoc, doc,
@@ -16,9 +5,13 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { useApp } from '../context/AppContext'
+import {
+  notifyNewMessage,
+  notifyPaymentReminder,
+} from '../utils/pushNotifications'
 
 export function useChat() {
-  const { groupId, userProfile, messages } = useApp()
+  const { groupId, userProfile, groupMembers, messages } = useApp()
   const [sending, setSending] = useState(false)
 
   async function sendMessage(text) {
@@ -34,6 +27,8 @@ export function useChat() {
         readBy:       [userProfile.id],
         createdAt:    serverTimestamp(),
       })
+      // Push a los demás miembros — gratuito, directo a Expo API
+      await notifyNewMessage(userProfile.name, text.trim(), groupMembers, userProfile.id)
     } finally {
       setSending(false)
     }
@@ -41,8 +36,9 @@ export function useChat() {
 
   async function sendPaymentReminder(fromUserId, toUserId, amount, members) {
     if (!groupId) return
-    const fromName = members.find(m => m.id === fromUserId)?.name || 'Alguien'
-    const toName   = members.find(m => m.id === toUserId)?.name   || 'alguien'
+    const allMembers = members?.length ? members : groupMembers
+    const fromName = allMembers.find(m => m.id === fromUserId)?.name || 'Alguien'
+    const toName   = allMembers.find(m => m.id === toUserId)?.name   || 'alguien'
 
     await addDoc(collection(db, 'groups', groupId, 'messages'), {
       type:       'payment_reminder',
@@ -55,6 +51,11 @@ export function useChat() {
       amount,
       createdAt:  serverTimestamp(),
     })
+
+    // Notifica solo al deudor (fromUserId)
+    const fromMember = allMembers.find(m => m.id === fromUserId)
+    const toMember   = allMembers.find(m => m.id === toUserId)
+    await notifyPaymentReminder(fromMember, toMember, amount)
   }
 
   async function sendSystemMessage(text) {
@@ -73,7 +74,6 @@ export function useChat() {
     if (!userProfile || !groupId) return
     const msg = messages.find(m => m.id === messageId)
     if (!msg || msg.readBy?.includes(userProfile.id)) return
-
     await updateDoc(doc(db, 'groups', groupId, 'messages', messageId), {
       readBy: arrayUnion(userProfile.id),
     })

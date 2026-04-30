@@ -10,8 +10,9 @@ import {
   serverTimestamp, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { auth, db }  from '../config/firebase'
-import { useApp }    from '../context/AppContext'
+import { auth, db }     from '../config/firebase'
+import { useApp }       from '../context/AppContext'
+import { notifyNewMember } from '../utils/pushNotifications'
 
 export function useAuth() {
   const { onProfileCreated } = useApp()
@@ -92,10 +93,22 @@ export function useAuth() {
       if (groupData.memberIds.includes(uid)) { setError('Ya eres miembro de este grupo.'); throw new Error('Ya miembro') }
       if (groupData.memberIds.length >= 10)  { setError('El grupo está lleno (máximo 10).'); throw new Error('Lleno') }
 
+      // Notificar a los miembros existentes ANTES de añadir al nuevo
+      const existingMemberDocs = await Promise.all(
+        groupData.memberIds.map(id => getDoc(doc(db, 'users', id)))
+      )
+      const existingMembers = existingMemberDocs
+        .filter(d => d.exists())
+        .map(d => ({ id: d.id, ...d.data() }))
+
       await updateDoc(groupDoc.ref, { memberIds: arrayUnion(uid), updatedAt: serverTimestamp() })
       await updateDoc(doc(db, 'users', uid), { groupIds: arrayUnion(groupDoc.id), updatedAt: serverTimestamp() })
       const profileSnap = await getDoc(doc(db, 'users', uid))
       const profile = { id: uid, ...profileSnap.data() }
+
+      // Enviar push a los miembros existentes con el nombre del nuevo
+      await notifyNewMember(profile.name || 'Alguien', existingMembers, groupData.name)
+
       await onProfileCreated(profile, groupDoc.id)
       return groupDoc.id
     } catch (e) {

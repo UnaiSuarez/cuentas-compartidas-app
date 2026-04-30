@@ -1,10 +1,3 @@
-/**
- * Hook para todas las operaciones CRUD de transacciones.
- *
- * Las transacciones se guardan en:
- *   /groups/{groupId}/transactions/{txId}
- */
-
 import { useState } from 'react'
 import {
   collection, addDoc, updateDoc, deleteDoc,
@@ -12,9 +5,13 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { useApp } from '../context/AppContext'
+import {
+  notifyNewTransaction,
+  checkBalancesAndNotify,
+} from '../utils/pushNotifications'
 
 export function useTransactions() {
-  const { groupId, userProfile, categories } = useApp()
+  const { groupId, userProfile, categories, groupMembers, transactions } = useApp()
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState(null)
 
@@ -24,13 +21,13 @@ export function useTransactions() {
     setError(null)
     try {
       const categoryLabel = categories.find(c => c.id === data.category)?.label || data.category
-
-      const dateObj = data.date instanceof Date ? data.date : new Date(data.date)
+      const dateObj       = data.date instanceof Date ? data.date : new Date(data.date)
+      const amount        = Number(data.amount)
 
       await addDoc(collection(db, 'groups', groupId, 'transactions'), {
         type:          data.type,
         paymentMode:   data.paymentMode || 'individual',
-        amount:        Number(data.amount),
+        amount,
         category:      data.category || 'other',
         categoryLabel,
         description:   data.description || '',
@@ -41,6 +38,17 @@ export function useTransactions() {
         updatedAt:     serverTimestamp(),
         createdBy:     userProfile?.id || '',
       })
+
+      // Push a los demás miembros
+      const normalizedTx = {
+        type: data.type, paymentMode: data.paymentMode || 'individual',
+        amount, categoryLabel, category: data.category,
+        paidBy: data.paidBy, splitAmong: data.splitAmong || [],
+      }
+      await notifyNewTransaction(normalizedTx, userProfile.name, groupMembers, userProfile.id)
+
+      // Aviso de saldo extremo usando las transacciones actuales + la nueva
+      await checkBalancesAndNotify([...transactions, normalizedTx], groupMembers)
     } catch (e) {
       setError('Error al guardar la transacción: ' + e.message)
       throw e
@@ -57,7 +65,6 @@ export function useTransactions() {
       const categoryLabel = data.category
         ? (categories.find(c => c.id === data.category)?.label || data.category)
         : undefined
-
       const dateObj = data.date
         ? (data.date instanceof Date ? data.date : new Date(data.date))
         : undefined
